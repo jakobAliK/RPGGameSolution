@@ -1,120 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.IO;
-using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace RPGGame;
-
-// ============================================================
-// ENUMS
-// ============================================================
-
-public enum ItemType
-{
-    Verbrauchbar,
-    Waffe,
-    Rüstung,
-    Material
-}
-
-public enum StatusEffectType
-{
-    Keine,
-    Gift,
-    Brennen
-}
-
-
-// ============================================================
-// ITEM
-// ============================================================
-
-public class Item
-{
-    public string Name { get; set; } = "";
-    public string Description { get; set; } = "";
-    public ItemType Type { get; set; }
-    public int Price { get; set; }
-    public int Power { get; set; }
-
-    public Item()
-    {
-    }
-
-    public Item(
-        string name,
-        string description,
-        ItemType type,
-        int price,
-        int power = 0)
-    {
-        Name = name;
-        Description = description;
-        Type = type;
-        Price = price;
-        Power = power;
-    }
-}
-
-
-// ============================================================
-// INVENTAR
-// ============================================================
-
-public class Inventory
-{
-    public List<Item> Items { get; set; } = new();
-
-    public void Add(Item item)
-    {
-        Items.Add(item);
-    }
-
-    public bool Remove(Item item)
-    {
-        return Items.Remove(item);
-    }
-
-    public Item Find(string name)
-    {
-        foreach (Item item in Items)
-        {
-            if (item.Name.Equals(
-                    name,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                return item;
-            }
-        }
-
-        return null;
-    }
-
-    public Item GetAt(int index)
-    {
-        if (index < 0 || index >= Items.Count)
-        {
-            return null;
-        }
-
-        return Items[index];
-    }
-
-    public int CountType(ItemType type)
-    {
-        int count = 0;
-
-        foreach (Item item in Items)
-        {
-            if (item.Type == type)
-            {
-                count++;
-            }
-        }
-
-        return count;
-    }
-}
 
 
 // ============================================================
@@ -123,23 +13,22 @@ public class Inventory
 
 public class Quest
 {
-    public string Name { get; set; } = "";
-    public string Description { get; set; } = "";
+    public string Name { get; private set; } = "";
+    public string Description { get; private set; } = "";
 
-    public string TargetMonster { get; set; } = "";
+    public string TargetMonster { get; private set; } = "";
 
-    public int RequiredKills { get; set; }
-    public int CurrentKills { get; set; }
+    public int RequiredKills { get; private set; }
+    public int CurrentKills { get; private set; }
 
-    public int RewardXP { get; set; }
-    public int RewardGold { get; set; }
+    public int RewardXP { get; private set; }
+    public int RewardGold { get; private set; }
 
-    public bool Claimed { get; set; }
+    public bool Claimed { get; private set; }
 
     public Quest()
     {
     }
-
     public Quest(
         string name,
         string description,
@@ -155,6 +44,12 @@ public class Quest
         RewardXP = rewardXP;
         RewardGold = rewardGold;
     }
+
+
+
+
+
+
 
     public bool IsCompleted()
     {
@@ -194,603 +89,14 @@ public class Quest
         Claimed = true;
 
         player.GainExperience(RewardXP);
-        player.Gold += RewardGold;
+        player.AddGold(RewardGold);
 
         return true;
     }
 }
 
 
-// ============================================================
-// CHARACTER
-// ============================================================
 
-public class Character
-{
-    public string Name { get; set; } = "";
-
-    public int MaxHealth { get; set; }
-    public int Health { get; set; }
-
-    public int Attack { get; set; }
-    public int Defense { get; set; }
-
-    public int DodgeChance { get; set; }
-    public int CriticalChance { get; set; }
-
-    public int PoisonTurns { get; set; }
-    public int PoisonDamage { get; set; }
-
-    public int BurnTurns { get; set; }
-    public int BurnDamage { get; set; }
-
-    public Character()
-    {
-    }
-
-    public Character(
-        string name,
-        int maxHealth,
-        int attack,
-        int defense)
-    {
-        Name = name;
-        MaxHealth = maxHealth;
-        Health = maxHealth;
-        Attack = attack;
-        Defense = defense;
-
-        DodgeChance = 5;
-        CriticalChance = 10;
-    }
-
-    public bool IsAlive()
-    {
-        return Health > 0;
-    }
-
-    public int TakeDamage(int rawDamage)
-    {
-        int finalDamage = Math.Max(
-            1,
-            rawDamage - Defense);
-
-        Health -= finalDamage;
-
-        if (Health < 0)
-        {
-            Health = 0;
-        }
-
-        return finalDamage;
-    }
-
-    public int Heal(int amount)
-    {
-        int oldHealth = Health;
-
-        Health += amount;
-
-        if (Health > MaxHealth)
-        {
-            Health = MaxHealth;
-        }
-
-        return Health - oldHealth;
-    }
-
-    public void ApplyPoison(
-        int damage,
-        int turns)
-    {
-        PoisonDamage = damage;
-        PoisonTurns = Math.Max(
-            PoisonTurns,
-            turns);
-    }
-
-    public void ApplyBurn(
-        int damage,
-        int turns)
-    {
-        BurnDamage = damage;
-        BurnTurns = Math.Max(
-            BurnTurns,
-            turns);
-    }
-
-    public int ProcessStatusEffects()
-    {
-        int totalDamage = 0;
-
-        if (PoisonTurns > 0)
-        {
-            Health -= PoisonDamage;
-
-            if (Health < 0)
-            {
-                Health = 0;
-            }
-
-            totalDamage += PoisonDamage;
-
-            PoisonTurns--;
-        }
-
-        if (BurnTurns > 0)
-        {
-            Health -= BurnDamage;
-
-            if (Health < 0)
-            {
-                Health = 0;
-            }
-
-            totalDamage += BurnDamage;
-
-            BurnTurns--;
-        }
-
-        return totalDamage;
-    }
-}
-
-
-// ============================================================
-// PLAYER
-// ============================================================
-
-public class Player : Character
-{
-    public int Level { get; set; } = 1;
-    public int Experience { get; set; }
-
-    public int Gold { get; set; } = 50;
-
-    public int MaxMana { get; set; } = 50;
-    public int Mana { get; set; } = 50;
-
-    public int BaseAttack { get; set; } = 10;
-    public int BaseDefense { get; set; } = 5;
-
-    public string EquippedWeapon { get; set; } = "";
-    public string EquippedArmor { get; set; } = "";
-
-    public Inventory Inventory { get; set; } = new();
-
-    public List<Quest> Quests { get; set; } = new();
-
-    public Dictionary<string, int> KillStatistics { get; set; }
-        = new();
-
-    public Player()
-    {
-    }
-
-    public Player(string name)
-        : base(name, 100, 10, 5)
-    {
-        BaseAttack = 10;
-        BaseDefense = 5;
-
-        MaxMana = 50;
-        Mana = MaxMana;
-
-        CriticalChance = 10;
-        DodgeChance = 5;
-    }
-
-    // --------------------------------------------------------
-    // XP
-    // --------------------------------------------------------
-
-    public int RequiredExperience()
-    {
-        return 100 + ((Level - 1) * 50);
-    }
-
-    public void GainExperience(int amount)
-    {
-        if (amount <= 0)
-        {
-            return;
-        }
-
-        Experience += amount;
-
-        while (Experience >= RequiredExperience())
-        {
-            Experience -= RequiredExperience();
-
-            LevelUp();
-        }
-    }
-
-    public void LevelUp()
-    {
-        Level++;
-
-        MaxHealth += 20;
-        Health = MaxHealth;
-
-        MaxMana += 10;
-        Mana = MaxMana;
-
-        BaseAttack += 3;
-        BaseDefense += 2;
-
-        CriticalChance += 1;
-        DodgeChance += 1;
-
-        UpdateStats();
-    }
-
-    // --------------------------------------------------------
-    // STATS
-    // --------------------------------------------------------
-
-    public void UpdateStats()
-    {
-        Attack = BaseAttack;
-        Defense = BaseDefense;
-
-        Item weapon = Inventory.Find(EquippedWeapon);
-
-        if (weapon != null &&
-            weapon.Type == ItemType.Waffe)
-        {
-            Attack += weapon.Power;
-        }
-
-        Item armor = Inventory.Find(EquippedArmor);
-
-        if (armor != null &&
-            armor.Type == ItemType.Rüstung)
-        {
-            Defense += armor.Power;
-        }
-    }
-
-    // --------------------------------------------------------
-    // AUSRÜSTEN
-    // --------------------------------------------------------
-
-    public bool Equip(Item item)
-    {
-        if (item == null)
-        {
-            return false;
-        }
-
-        if (!Inventory.Items.Contains(item))
-        {
-            return false;
-        }
-
-        if (item.Type == ItemType.Waffe)
-        {
-            EquippedWeapon = item.Name;
-            UpdateStats();
-            return true;
-        }
-
-        if (item.Type == ItemType.Rüstung)
-        {
-            EquippedArmor = item.Name;
-            UpdateStats();
-            return true;
-        }
-
-        return false;
-    }
-
-    // --------------------------------------------------------
-    // HEILTRANK
-    // --------------------------------------------------------
-
-    public int UseHealingItem(int index)
-    {
-        Item item = Inventory.GetAt(index);
-
-        if (item == null)
-        {
-            return 0;
-        }
-
-        if (item.Type != ItemType.Verbrauchbar)
-        {
-            return 0;
-        }
-
-        int healed = Heal(item.Power);
-
-        Inventory.Remove(item);
-
-        return healed;
-    }
-
-    // --------------------------------------------------------
-    // VERKAUF
-    // --------------------------------------------------------
-
-    public int SellItem(int index)
-    {
-        Item item = Inventory.GetAt(index);
-
-        if (item == null)
-        {
-            return 0;
-        }
-
-        // Prevent selling quest items? (simple rule: materials and consumables and equipment can be sold)
-        // Unequip if currently equipped
-        if (!string.IsNullOrEmpty(EquippedWeapon) && item.Name == EquippedWeapon)
-        {
-            EquippedWeapon = string.Empty;
-        }
-
-        if (!string.IsNullOrEmpty(EquippedArmor) && item.Name == EquippedArmor)
-        {
-            EquippedArmor = string.Empty;
-        }
-
-        int sellPrice = Math.Max(1, item.Price / 2);
-
-        bool removed = Inventory.Remove(item);
-
-        if (!removed)
-        {
-            return 0;
-        }
-
-        Gold += sellPrice;
-
-        UpdateStats();
-
-        return sellPrice;
-    }
-
-    // --------------------------------------------------------
-    // FIREBALL
-    // --------------------------------------------------------
-
-    public int CastFireball(Monster target)
-    {
-        const int manaCost = 20;
-
-        if (Mana < manaCost)
-        {
-            return 0;
-        }
-
-        Mana -= manaCost;
-
-        int damage =
-            25 +
-            (Level * 5);
-
-        int finalDamage =
-            Math.Max(
-                1,
-                damage - (target.Defense / 2));
-
-        target.Health -= finalDamage;
-
-        if (target.Health < 0)
-        {
-            target.Health = 0;
-        }
-
-        return finalDamage;
-    }
-
-    // --------------------------------------------------------
-    // QUEST-KILL
-    // --------------------------------------------------------
-
-    public void RegisterKill(string monsterName)
-    {
-        if (KillStatistics.ContainsKey(monsterName))
-        {
-            KillStatistics[monsterName]++;
-        }
-        else
-        {
-            KillStatistics[monsterName] = 1;
-        }
-
-        foreach (Quest quest in Quests)
-        {
-            quest.RegisterKill(monsterName);
-        }
-    }
-}
-
-
-// ============================================================
-// MONSTER
-// ============================================================
-
-public class Monster : Character
-{
-    public int ExperienceReward { get; set; }
-
-    public int MinGold { get; set; }
-    public int MaxGold { get; set; }
-
-    public int PoisonChance { get; set; }
-
-    public List<Item> Drops { get; set; } = new();
-
-    public Monster()
-    {
-    }
-
-    public Monster(
-        string name,
-        int health,
-        int attack,
-        int defense,
-        int experienceReward,
-        int minGold,
-        int maxGold)
-        : base(name, health, attack, defense)
-    {
-        ExperienceReward = experienceReward;
-        MinGold = minGold;
-        MaxGold = maxGold;
-    }
-
-    public int GetGold()
-    {
-        return Random.Shared.Next(
-            MinGold,
-            MaxGold + 1);
-    }
-
-    public List<Item> GenerateDrops()
-    {
-        List<Item> result = new();
-
-        foreach (Item item in Drops)
-        {
-            int chance = Random.Shared.Next(1, 101);
-
-            if (chance <= 50)
-            {
-                result.Add(item);
-            }
-        }
-
-        return result;
-    }
-}
-
-
-// ============================================================
-// COMBAT RESULT
-// ============================================================
-
-public class AttackResult
-{
-    public bool Dodged { get; set; }
-    public bool Critical { get; set; }
-    public int Damage { get; set; }
-}
-
-
-// ============================================================
-// COMBAT SERVICE
-// ============================================================
-
-public static class CombatService
-{
-    public static AttackResult Attack(
-        Character attacker,
-        Character defender,
-        Func<int, int, int> random)
-    {
-        AttackResult result = new();
-
-        int dodgeRoll =
-            random(1, 101);
-
-        if (dodgeRoll <= defender.DodgeChance)
-        {
-            result.Dodged = true;
-            result.Damage = 0;
-
-            return result;
-        }
-
-        int critRoll =
-            random(1, 101);
-
-        result.Critical =
-            critRoll <= attacker.CriticalChance;
-
-        int rawDamage = attacker.Attack;
-
-        if (result.Critical)
-        {
-            rawDamage *= 2;
-        }
-
-        result.Damage =
-            defender.TakeDamage(rawDamage);
-
-        return result;
-    }
-}
-
-
-// ============================================================
-// SAVE SYSTEM
-// ============================================================
-
-public static class SaveGame
-{
-    public static void Save(
-        Player player,
-        string path = "savegame.json")
-    {
-        JsonSerializerOptions options =
-            new()
-            {
-                WriteIndented = true
-            };
-
-        string json =
-            JsonSerializer.Serialize(
-                player,
-                options);
-
-        File.WriteAllText(
-            path,
-            json);
-    }
-
-    public static Player Load(
-        string path = "savegame.json")
-    {
-        if (!File.Exists(path))
-        {
-            return null;
-        }
-
-        string json =
-            File.ReadAllText(path);
-
-        Player player =
-            JsonSerializer.Deserialize<Player>(
-                json);
-
-        if (player == null)
-        {
-            return null;
-        }
-
-        if (player.Inventory == null)
-        {
-            player.Inventory = new Inventory();
-        }
-
-        if (player.Quests == null)
-        {
-            player.Quests = new List<Quest>();
-        }
-
-        if (player.KillStatistics == null)
-        {
-            player.KillStatistics =
-                new Dictionary<string, int>();
-        }
-
-        player.UpdateStats();
-
-        return player;
-    }
-}
 
 
 // ============================================================
@@ -840,7 +146,7 @@ public static class GameFactory
             player.Inventory.Find("Lederrüstung"));
 
         // Quests
-        player.Quests.Add(
+        player.AddQuest(
             new Quest(
                 "Goblin-Jäger",
                 "Besiege 3 Goblins.",
@@ -849,7 +155,7 @@ public static class GameFactory
                 100,
                 50));
 
-        player.Quests.Add(
+        player.AddQuest(
             new Quest(
                 "Wolfjäger",
                 "Besiege 2 Wölfe.",
@@ -858,7 +164,7 @@ public static class GameFactory
                 120,
                 70));
 
-        player.Quests.Add(
+        player.AddQuest(
             new Quest(
                 "Untote Bedrohung",
                 "Besiege 2 Skelette.",
@@ -889,21 +195,27 @@ public static class GameFactory
         monster.CriticalChance = 5;
         monster.DodgeChance = 8;
 
-        monster.Drops.Add(
+    monster.AddDrop(
             new Item(
                 "Goblin-Dolch",
                 "Ein rostiger Dolch.",
                 ItemType.Waffe,
                 25,
                 2));
-
-        monster.Drops.Add(
+        monster.AddDrop(
             new Item(
                 "Heiltrank",
                 "Heilt 30 HP.",
                 ItemType.Verbrauchbar,
                 20,
                 30));
+        monster.AddDrop(
+            new Item(
+                "Goblin-Dolch",
+                "Ein rostiger Dolch.",
+                ItemType.Waffe,
+                25,
+                2));
 
         return monster;
     }
@@ -928,14 +240,14 @@ public static class GameFactory
 
         monster.PoisonChance = 10;
 
-        monster.Drops.Add(
+        monster.AddDrop(
             new Item(
                 "Wolfspelz",
                 "Ein wertvoller Pelz.",
                 ItemType.Material,
                 15));
 
-        monster.Drops.Add(
+        monster.AddDrop(
             new Item(
                 "Heiltrank",
                 "Heilt 30 HP.",
@@ -964,7 +276,7 @@ public static class GameFactory
 
         monster.CriticalChance = 15;
 
-        monster.Drops.Add(
+        monster.AddDrop(
             new Item(
                 "Banditenschwert",
                 "Ein gebrauchtes Schwert.",
@@ -972,7 +284,7 @@ public static class GameFactory
                 50,
                 5));
 
-        monster.Drops.Add(
+        monster.AddDrop(
             new Item(
                 "Goldbeutel",
                 "Kann für Gold verkauft werden.",
@@ -998,7 +310,7 @@ public static class GameFactory
                 20,
                 40);
 
-        monster.Drops.Add(
+        monster.AddDrop(
             new Item(
                 "Knochenrüstung",
                 "Eine ungewöhnliche Rüstung.",
@@ -1006,7 +318,7 @@ public static class GameFactory
                 60,
                 5));
 
-        monster.Drops.Add(
+        monster.AddDrop(
             new Item(
                 "Großer Heiltrank",
                 "Heilt 70 HP.",
@@ -1036,7 +348,7 @@ public static class GameFactory
         monster.CriticalChance = 20;
         monster.DodgeChance = 10;
 
-        monster.Drops.Add(
+        monster.AddDrop(
             new Item(
                 "Dunkelschwert",
                 "Das Schwert des dunklen Ritters.",
@@ -1044,7 +356,7 @@ public static class GameFactory
                 150,
                 12));
 
-        monster.Drops.Add(
+        monster.AddDrop(
             new Item(
                 "Ritterrüstung",
                 "Eine mächtige Rüstung.",
@@ -1052,7 +364,7 @@ public static class GameFactory
                 140,
                 10));
 
-        monster.Drops.Add(
+        monster.AddDrop(
             new Item(
                 "Großer Heiltrank",
                 "Heilt 70 HP.",
@@ -1114,7 +426,10 @@ public static class Program
         Console.Write("Auswahl: ");
 
         string choice =
-            Console.ReadLine();
+            ReadChoiceWithKeywords(
+                "Neues Spiel",
+                "Spiel laden",
+                "Beenden");
 
         if (choice == "1")
         {
@@ -1188,9 +503,9 @@ public static class Program
 
             Console.WriteLine();
 
-            Console.WriteLine("1. Wald");
-            Console.WriteLine("2. Schloss");
-            Console.WriteLine("3. Shop");
+            Console.WriteLine("1. Orte erkunden");
+            Console.WriteLine("2. Wald");
+            Console.WriteLine("3. Schloss");
             Console.WriteLine("4. Inventar");
             Console.WriteLine("5. Quests");
             Console.WriteLine("6. Charakter");
@@ -1201,20 +516,28 @@ public static class Program
             Console.Write("Auswahl: ");
 
             string choice =
-                Console.ReadLine();
+                ReadChoiceWithKeywords(
+                    "Orte erkunden",
+                    "Wald",
+                    "Schloss",
+                    "Inventar",
+                    "Quests",
+                    "Charakter",
+                    "Speichern",
+                    "Beenden");
 
             switch (choice)
             {
                 case "1":
-                    Forest(player);
+                    ExploreLocations(player);
                     break;
 
                 case "2":
-                    Castle(player);
+                    Forest(player);
                     break;
 
                 case "3":
-                    Shop(player);
+                    Castle(player);
                     break;
 
                 case "4":
@@ -1222,7 +545,7 @@ public static class Program
                     break;
 
                 case "5":
-                    QuestMenu(player);
+                    ViewQuestsHelper.ViewQuests(player);
                     break;
 
                 case "6":
@@ -1257,6 +580,343 @@ public static class Program
     }
 
     // ========================================================
+    // ORTE / EXPLORATION
+    // ========================================================
+
+    private static void ExploreLocations(Player player)
+    {
+        List<Location> locations = WorldFactory.GetAllLocations();
+
+        while (true)
+        {
+            Console.Clear();
+
+            Console.WriteLine("==========================================");
+            Console.WriteLine("           ORTE ERKUNDEN");
+            Console.WriteLine("==========================================");
+            Console.WriteLine();
+
+            for (int i = 0; i < locations.Count; i++)
+            {
+                var loc = locations[i];
+                Console.WriteLine($"{i + 1}. {loc.Name} (Level {loc.MinLevel}-{loc.MaxLevel})");
+            }
+
+            Console.WriteLine("0. Zurück");
+            Console.WriteLine();
+            Console.Write("Auswahl: ");
+
+            // Optionen sind die Namen der Orte. Ermöglicht Texteingaben wie "ich gehe in den wald"
+            string[] locOptions = new string[locations.Count];
+            for (int i = 0; i < locations.Count; i++) locOptions[i] = locations[i].Name;
+
+            string input = ReadChoiceWithKeywords(locOptions);
+
+            // Falls der Benutzer "zurück" schreibt
+            if (!string.IsNullOrWhiteSpace(input) && input.ToLowerInvariant().Contains("zurück")) return;
+
+            if (input == "0") return;
+
+            if (!int.TryParse(input, out int idx) || idx < 1 || idx > locations.Count)
+            {
+                Console.WriteLine("Ungültige Auswahl.");
+                Pause();
+                continue;
+            }
+
+            ExploreLocation(player, locations[idx - 1]);
+        }
+    }
+
+    private static void ExploreLocation(Player player, Location location)
+    {
+        // Wenn dies eine definierte Stadt ist, zeige stadt-spezifische Optionen
+        var town = StoryTexts.GetTownLocation(location.Name);
+
+        if (town != null)
+        {
+            // Weise gegebenenfalls Quests zu (duplikate werden übersprungen)
+            StoryTexts.AssignTownQuestsToPlayer(town.Name, player);
+
+            while (true)
+            {
+                Console.Clear();
+                Console.WriteLine($"== {town.Name} ==");
+                Console.WriteLine(town.Description);
+                Console.WriteLine();
+                Console.WriteLine(StoryTexts.GetRandomTownEvent());
+                Console.WriteLine();
+                Console.WriteLine("1. Zum Laden gehen (Shop)");
+                Console.WriteLine("2. Zur Taverne (gratis heilen)");
+                Console.WriteLine("3. Quests ansehen / annehmen");
+                Console.WriteLine("4. Zurück");
+                Console.WriteLine();
+                Console.Write("Auswahl: ");
+
+                string choice = ReadChoiceWithKeywords(
+                    "Laden",
+                    "Taverne",
+                    "Quests",
+                    "Zurück");
+
+                switch (choice)
+                {
+                    case "1":
+                        // Shop
+                        var inv = StoryTexts.GetShopInventory(town.Name).ToList();
+
+                        while (true)
+                        {
+                            Console.Clear();
+                            Console.WriteLine($"== Laden von {town.Name} ==");
+                            Console.WriteLine();
+                            for (int i = 0; i < inv.Count; i++)
+                            {
+                                var it = inv[i];
+                                Console.WriteLine($"{i + 1}. {it.Name} - {it.Description} ({it.Price} Gold)");
+                            }
+
+                            Console.WriteLine("0. Zurück");
+                            Console.WriteLine();
+                            Console.Write("Kaufen (Nummer): ");
+
+                            string input = Console.ReadLine();
+
+                            if (string.IsNullOrWhiteSpace(input)) break;
+
+                            if (input == "0") break;
+
+                            if (!int.TryParse(input, out int idx) || idx < 1 || idx > inv.Count)
+                            {
+                                Console.WriteLine("Ungültige Auswahl.");
+                                Pause();
+                                continue;
+                            }
+
+                            var shopItem = inv[idx - 1];
+
+                            if (!player.SpendGold(shopItem.Price))
+                            {
+                                Console.WriteLine("Du hast nicht genug Gold.");
+                                Pause();
+                                continue;
+                            }
+
+                            // Erzeuge ein Item aus dem Shop-Eintrag (einfache Zuordnung)
+                            Item newItem = CreateItemFromShopItem(shopItem);
+                            player.Inventory.Add(newItem);
+
+                            Console.WriteLine($"Du kaufst: {newItem.Name}");
+                            Pause();
+                        }
+
+                        break;
+
+                    case "2":
+                        // Taverne: Gratis Heilung
+                        Console.Clear();
+                        Console.WriteLine(town.TavernDescription);
+                        Console.WriteLine();
+                        Console.WriteLine(town.TavernHealingText);
+                        Console.WriteLine();
+                        Console.WriteLine("Möchtest du dich ausruhen? (j/n)");
+                        string yn = Console.ReadLine() ?? "n";
+
+                        if (yn.Trim().Equals("j", StringComparison.OrdinalIgnoreCase) ||
+                            yn.Trim().Equals("y", StringComparison.OrdinalIgnoreCase))
+                        {
+                            int healed = StoryTexts.UseTavernHealing(player, town.Name);
+                            Console.WriteLine($"Du wurdest um {healed} HP geheilt und dein Mana wurde wiederhergestellt.");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Du entscheidest dich weiterzureisen.");
+                        }
+
+                        Pause();
+                        break;
+
+                    case "3":
+                        // Quests ansehen
+                        var qTemplates = StoryTexts.GetAvailableQuests(town.Name).ToList();
+
+                        Console.Clear();
+                        Console.WriteLine($"== Quests in {town.Name} ==");
+                        Console.WriteLine();
+
+                        for (int i = 0; i < qTemplates.Count; i++)
+                        {
+                            var q = qTemplates[i];
+                            Console.WriteLine($"{i + 1}. {q.Title} - {q.Description} (Geber: {q.Giver})");
+                        }
+
+                        Console.WriteLine();
+                        Console.WriteLine("0. Zurück");
+                        Console.WriteLine("Möchtest du alle Quests annehmen? (j/n)");
+                        string accept = Console.ReadLine() ?? "n";
+
+                        if (accept.Trim().Equals("j", StringComparison.OrdinalIgnoreCase) ||
+                            accept.Trim().Equals("y", StringComparison.OrdinalIgnoreCase))
+                        {
+                            StoryTexts.AssignTownQuestsToPlayer(town.Name, player);
+                            Console.WriteLine("Alle verfügbaren Quests wurden deinem Journal hinzugefügt.");
+                        }
+
+                        Pause();
+                        break;
+
+                    case "4":
+                        return;
+
+                    default:
+                        Console.WriteLine("Ungültige Eingabe.");
+                        Pause();
+                        break;
+                }
+            }
+        }
+
+        // Standard-Explore-Flow für Nicht-Städte
+        while (true)
+        {
+            Console.Clear();
+            Console.WriteLine($"== {location.Name} ==");
+            Console.WriteLine(location.Description);
+            Console.WriteLine();
+            Console.WriteLine($"Monster vor Ort: {location.Monsters.Count}");
+            Console.WriteLine($"Gefundene Gegenstände: {location.Items.Count}");
+            Console.WriteLine();
+            Console.WriteLine("1. Nach Schätzen suchen");
+            Console.WriteLine("2. Auf einen Gegner treffen (Kampf)");
+            Console.WriteLine("3. Zurück");
+            Console.WriteLine();
+            Console.Write("Auswahl: ");
+
+            string choice = ReadChoiceWithKeywords(
+                "Nach Schätzen suchen",
+                "Auf einen Gegner treffen",
+                "Zurück");
+
+            switch (choice)
+            {
+                case "1":
+                    if (location.Items.Count == 0)
+                    {
+                        Console.WriteLine("Keine Gegenstände hier.");
+                        Pause();
+                        break;
+                    }
+
+                    int chance = Random.Shared.Next(1, 101);
+
+                    if (chance <= 70)
+                    {
+                        int itemIndex = Random.Shared.Next(0, location.Items.Count);
+                        Item found = location.Items[itemIndex];
+
+                        player.Inventory.Add(found);
+
+                        Console.WriteLine($"Du findest: {found.Name}");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Du findest nichts von Wert.");
+                    }
+
+                    Pause();
+                    break;
+
+                case "2":
+                    if (location.Monsters.Count == 0)
+                    {
+                        Console.WriteLine("Keine Monster hier.");
+                        Pause();
+                        break;
+                    }
+
+                    int mIndex = Random.Shared.Next(0, location.Monsters.Count);
+                    Monster proto = location.Monsters[mIndex];
+                    Monster enemy = CreateMonsterByName(proto.Name);
+
+                    StartBattle(player, enemy);
+
+                    if (!enemy.IsAlive())
+                    {
+                        int gold = enemy.GetGold();
+                        player.AddGold(gold);
+                        player.GainExperience(enemy.ExperienceReward);
+
+                        foreach (var drop in enemy.GenerateDrops())
+                        {
+                            player.Inventory.Add(drop);
+                        }
+
+                        Console.WriteLine($"Du erhältst {enemy.ExperienceReward} XP und {gold} Gold.");
+                        Pause();
+                    }
+
+                    break;
+
+                case "3":
+                    return;
+
+                default:
+                    Console.WriteLine("Ungültige Eingabe.");
+                    Pause();
+                    break;
+            }
+        }
+    }
+
+    private static Monster CreateMonsterByName(string name)
+    {
+        if (name.Contains("Goblin", StringComparison.OrdinalIgnoreCase))
+            return GameFactory.CreateGoblin();
+
+        if (name.Contains("Wolf", StringComparison.OrdinalIgnoreCase))
+            return GameFactory.CreateWolf();
+
+        if (name.Contains("Bandit", StringComparison.OrdinalIgnoreCase))
+            return GameFactory.CreateBandit();
+
+        if (name.Contains("Skelett", StringComparison.OrdinalIgnoreCase) || name.Contains("Skeleton", StringComparison.OrdinalIgnoreCase))
+            return GameFactory.CreateSkeleton();
+
+        if (name.Contains("Dunkler", StringComparison.OrdinalIgnoreCase) || name.Contains("Ritter", StringComparison.OrdinalIgnoreCase))
+            return GameFactory.CreateDarkKnight();
+
+        // Fallback
+        return GameFactory.CreateGoblin();
+    }
+
+    private static Item CreateItemFromShopItem(StoryTexts.ShopItem shopItem)
+    {
+        if (shopItem == null)
+            return new Item("Unbekannt", "Ein seltsamer Gegenstand.", ItemType.Material, shopItem?.Price ?? 1);
+
+        string key = shopItem.Key ?? string.Empty;
+
+        // Einfache Zuordnung basierend auf Schlüssel
+        if (key.Contains("Health", StringComparison.OrdinalIgnoreCase) || key.Contains("Potion", StringComparison.OrdinalIgnoreCase))
+        {
+            return new Item(shopItem.Name, shopItem.Description, ItemType.Verbrauchbar, shopItem.Price, 30);
+        }
+
+        if (key.Contains("Sword", StringComparison.OrdinalIgnoreCase) || key.Contains("Iron", StringComparison.OrdinalIgnoreCase))
+        {
+            return new Item(shopItem.Name, shopItem.Description, ItemType.Waffe, shopItem.Price, 6);
+        }
+
+        if (key.Contains("Armor", StringComparison.OrdinalIgnoreCase) || key.Contains("Leather", StringComparison.OrdinalIgnoreCase))
+        {
+            return new Item(shopItem.Name, shopItem.Description, ItemType.Rüstung, shopItem.Price, 3);
+        }
+
+        // Default: Material
+        return new Item(shopItem.Name, shopItem.Description, ItemType.Material, shopItem.Price);
+    }
+
+    // ========================================================
     // WALD
     // ========================================================
 
@@ -1266,7 +926,7 @@ public static class Program
         Console.Clear();
 
         Console.WriteLine(
-            "Du betrittst den dunklen Wald...");
+            "Du betrittst den dunklen Wald... Viel Glück!");
 
         Console.WriteLine();
 
@@ -1293,7 +953,7 @@ public static class Program
             int gold =
                 Random.Shared.Next(15, 51);
 
-            player.Gold += gold;
+            player.AddGold(gold);
 
             Console.WriteLine(
                 $"Du findest {gold} Gold.");
@@ -1376,7 +1036,11 @@ public static class Program
         Console.Write("Auswahl: ");
 
         string choice =
-            Console.ReadLine();
+            ReadChoiceWithKeywords(
+                "Eingangshalle",
+                "Keller",
+                "Obergeschoss",
+                "Zurück");
 
         switch (choice)
         {
@@ -1475,8 +1139,11 @@ public static class Program
             Console.WriteLine();
             Console.Write("Auswahl: ");
 
-            string choice =
-                Console.ReadLine();
+            string choice = ReadChoiceWithKeywords(
+                "Angriff",
+                "Feuerball",
+                "Heiltrank",
+                "Fliehen");
 
             bool successfulAction = true;
 
@@ -1672,7 +1339,7 @@ public static class Program
             int gold =
                 monster.GetGold();
 
-            player.Gold += gold;
+            player.AddGold(gold);
 
             player.GainExperience(
                 monster.ExperienceReward);
@@ -1748,12 +1415,12 @@ public static class Program
             new();
 
         for (int i = 0;
-             i < player.Inventory.Items.Count;
+             i < player.Inventory.Count;
              i++)
         {
-            if (
-                player.Inventory.Items[i].Type ==
-                ItemType.Verbrauchbar)
+            Item it = player.Inventory.GetAt(i);
+
+            if (it != null && it.Type == ItemType.Verbrauchbar)
             {
                 potionIndexes.Add(i);
             }
@@ -1777,8 +1444,8 @@ public static class Program
             i++)
         {
             Item item =
-                player.Inventory.Items[
-                    potionIndexes[i]];
+                player.Inventory.GetAt(
+                    potionIndexes[i]);
 
             Console.WriteLine(
                 $"{i + 1}. {item.Name} " +
@@ -1857,7 +1524,7 @@ public static class Program
             Console.WriteLine(
                 "==========================================");
 
-            if (player.Inventory.Items.Count == 0)
+            if (player.Inventory.Count == 0)
             {
                 Console.WriteLine(
                     "Dein Inventar ist leer.");
@@ -1866,11 +1533,15 @@ public static class Program
             {
                 for (
                     int i = 0;
-                    i < player.Inventory.Items.Count;
+                    i < player.Inventory.Count;
                     i++)
                 {
-                    Item invItem =
-                        player.Inventory.Items[i];
+                    Item invItem = player.Inventory.GetAt(i);
+
+                    if (invItem == null)
+                    {
+                        continue;
+                    }
 
                     Console.WriteLine(
                         $"{i + 1}. {invItem.Name} | " +
@@ -1894,7 +1565,10 @@ public static class Program
 
             Console.Write("Auswahl: ");
 
-            string choice = Console.ReadLine();
+            string choice = ReadChoiceWithKeywords(
+                "Item ausrüsten",
+                "Item verkaufen",
+                "Zurück");
 
             if (choice == "3")
             {
@@ -1910,9 +1584,41 @@ public static class Program
 
             Console.Write("Nummer des Items: ");
 
-            if (!int.TryParse(Console.ReadLine(), out int index))
+            // Optionen sind die Item-Namen, erlauben Auswahl per Text
+            string[] itemOptions = new string[player.Inventory.Count];
+            for (int i = 0; i < player.Inventory.Count; i++)
+            {
+                var it = player.Inventory.GetAt(i);
+                itemOptions[i] = it?.Name ?? string.Empty;
+            }
+
+            string itemInput = ReadChoiceWithKeywords(itemOptions);
+
+            if (!string.IsNullOrWhiteSpace(itemInput) && itemInput.ToLowerInvariant().Contains("zurück"))
             {
                 continue;
+            }
+
+            int index;
+            if (!int.TryParse(itemInput, out index))
+            {
+                // Versuche anhand des Namens zu matchen
+                string lower = itemInput?.ToLowerInvariant() ?? string.Empty;
+                index = -1;
+
+                for (int i = 0; i < itemOptions.Length; i++)
+                {
+                    if (!string.IsNullOrWhiteSpace(itemOptions[i]) && lower.Contains(itemOptions[i].ToLowerInvariant()))
+                    {
+                        index = i + 1;
+                        break;
+                    }
+                }
+
+                if (index == -1)
+                {
+                    continue;
+                }
             }
 
             index--;
@@ -2028,12 +1734,15 @@ public static class Program
             Console.WriteLine(
                 "1. Belohnungen einsammeln");
 
-            Console.WriteLine();
+        Console.WriteLine();
 
-            Console.Write("Auswahl: ");
+        Console.Write("Auswahl: ");
 
-            string choice =
-                Console.ReadLine();
+        string choice = ReadChoiceWithKeywords(
+            "Eingangshalle",
+            "Keller",
+            "Obergeschoss",
+            "Zurück");
 
             if (choice == "0")
             {
@@ -2114,8 +1823,12 @@ public static class Program
 
             Console.Write("Auswahl: ");
 
-            string choice =
-                Console.ReadLine();
+            string choice = ReadChoiceWithKeywords(
+                "Heiltrank",
+                "Großer Heiltrank",
+                "Eisenschwert",
+                "Kettenrüstung",
+                "Zurück");
 
             if (choice == "5")
             {
@@ -2180,7 +1893,7 @@ public static class Program
                     continue;
             }
 
-            if (player.Gold < item.Price)
+            if (!player.SpendGold(item.Price))
             {
                 Console.WriteLine(
                     "Nicht genug Gold.");
@@ -2189,8 +1902,6 @@ public static class Program
 
                 continue;
             }
-
-            player.Gold -= item.Price;
 
             player.Inventory.Add(item);
 
@@ -2275,8 +1986,29 @@ public static class Program
                 $"- {statistic.Key}: " +
                 $"{statistic.Value}");
         }
+        Console.WriteLine();
 
-        Pause();
+        Console.WriteLine($"Skillpunkte: {player.SkillPoints}");
+
+        if (player.SkillPoints > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("1. Skillpunkte verteilen");
+            Console.WriteLine("2. Zurück");
+            Console.WriteLine();
+            Console.Write("Auswahl: ");
+
+            string choice = Console.ReadLine();
+
+            if (choice == "1")
+            {
+                AllocateSkillPoints(player);
+            }
+        }
+        else
+        {
+            Pause();
+        }
     }
 
     // ========================================================
@@ -2290,5 +2022,215 @@ public static class Program
             "Drücke eine Taste, um fortzufahren...");
 
         Console.ReadKey();
+    }
+
+    // ========================================================
+    // BENUTZER-EINGABE MIT STICHWORT-ERKENNUNG
+    // ========================================================
+
+    private static string ReadChoiceWithKeywords(params string[] options)
+    {
+        string input = Console.ReadLine();
+
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return input;
+        }
+
+        input = input.Trim();
+
+        // Direkte Zahleneingabe bevorzugen
+        if (int.TryParse(input, out _))
+        {
+            return input;
+        }
+
+        string lower = input.ToLowerInvariant();
+
+        // Tokenize Eingabe
+        var tokens = System.Text.RegularExpressions.Regex.Split(lower, "\\W+");
+
+        // Synonyme-Mapping (kleine, erweiterbare Liste)
+        var synonyms = new System.Collections.Generic.Dictionary<string, string[]>()
+        {
+            { "gehen", new[] { "erkunden", "orte", "wald", "schloss" } },
+            { "gehe", new[] { "erkunden", "orte", "wald", "schloss" } },
+            { "betreten", new[] { "erkunden", "orte", "wald", "schloss" } },
+            { "betrete", new[] { "erkunden", "orte", "wald", "schloss" } },
+            { "kaufen", new[] { "shop", "shoppen" } },
+            { "kaufe", new[] { "shop", "shoppen" } },
+            { "shoppen", new[] { "shop" } },
+            { "inventar", new[] { "inventar" } },
+            { "quest", new[] { "quests" } },
+            { "quests", new[] { "quests" } },
+            { "charakter", new[] { "charakter" } },
+            { "speichern", new[] { "speichern" } },
+            { "laden", new[] { "laden" } },
+            { "beenden", new[] { "beenden" } },
+            { "angriff", new[] { "angriff" } },
+            { "attacke", new[] { "angriff" } },
+            { "feuerball", new[] { "feuerball" } },
+            { "heiltrank", new[] { "heiltrank" } },
+            { "trank", new[] { "heiltrank" } },
+            { "heilen", new[] { "heiltrank" } },
+            { "fliehen", new[] { "fliehen" } },
+            { "flucht", new[] { "fliehen" } },
+            { "ausrüsten", new[] { "ausrüsten" } },
+            { "ausruesten", new[] { "ausrüsten" } },
+            { "verkaufen", new[] { "verkaufen", "shop" } },
+            { "zurück", new[] { "zurück", "abbrechen" } },
+            { "zurueck", new[] { "zurück", "abbrechen" } },
+        };
+
+        // Helper: Levenshtein-Distanz
+        static int Levenshtein(string a, string b)
+        {
+            if (a == b) return 0;
+            if (string.IsNullOrEmpty(a)) return b.Length;
+            if (string.IsNullOrEmpty(b)) return a.Length;
+            int[,] d = new int[a.Length + 1, b.Length + 1];
+            for (int i = 0; i <= a.Length; i++) d[i, 0] = i;
+            for (int j = 0; j <= b.Length; j++) d[0, j] = j;
+            for (int i = 1; i <= a.Length; i++)
+            {
+                for (int j = 1; j <= b.Length; j++)
+                {
+                    int cost = (b[j - 1] == a[i - 1]) ? 0 : 1;
+                    d[i, j] = Math.Min(
+                        Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                        d[i - 1, j - 1] + cost);
+                }
+            }
+            return d[a.Length, b.Length];
+        }
+
+        for (int i = 0; i < options.Length; i++)
+        {
+            string opt = options[i] ?? string.Empty;
+            string optLower = opt.ToLowerInvariant();
+
+            // 1) Direkte vollständige Bezeichnung
+            if (!string.IsNullOrWhiteSpace(optLower) && lower.Contains(optLower))
+            {
+                return (i + 1).ToString();
+            }
+
+            // 2) Synonym-Check: Falls ein Token eine bekannte Synonym-Mapping hat und das Ziel im Optionstext vorkommt
+            foreach (var t in tokens)
+            {
+                if (string.IsNullOrWhiteSpace(t)) continue;
+
+                if (synonyms.TryGetValue(t, out var targets))
+                {
+                    foreach (var target in targets)
+                    {
+                        if (optLower.Contains(target))
+                        {
+                            return (i + 1).ToString();
+                        }
+                    }
+                }
+            }
+
+            // 3) Einzelne Wörter der Option prüfen (exakt oder fuzzy)
+            var words = optLower.Split(new[] { ' ', '-', '.' }, StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var w in words)
+            {
+                if (string.IsNullOrWhiteSpace(w)) continue;
+
+                // exakte enthalten-Überprüfung
+                foreach (var t in tokens)
+                {
+                    if (string.IsNullOrWhiteSpace(t)) continue;
+
+                    if (t.Contains(w) || w.Contains(t))
+                    {
+                        return (i + 1).ToString();
+                    }
+
+                    // fuzzy: kleine Tippfehler zulassen
+                    int dist = Levenshtein(t, w);
+                    int threshold = w.Length <= 4 ? 1 : Math.Max(1, w.Length / 4);
+                    if (dist <= threshold)
+                    {
+                        return (i + 1).ToString();
+                    }
+                }
+            }
+        }
+
+        // Falls nichts passt, gib die rohe Eingabe zurück
+        return input;
+    }
+
+    // ========================================================
+    // SKILL-ALLOCATION
+    // ========================================================
+
+    private static void AllocateSkillPoints(Player player)
+    {
+        while (player.SkillPoints > 0)
+        {
+            Console.Clear();
+
+            Console.WriteLine("Skillpunkte: " + player.SkillPoints);
+            Console.WriteLine();
+            Console.WriteLine("1. +MaxHealth (+10)");
+            Console.WriteLine("2. +MaxMana (+5)");
+            Console.WriteLine("3. +Angriff (+1)");
+            Console.WriteLine("4. +Verteidigung (+1)");
+            Console.WriteLine("5. +Krit-Chance (+1)");
+            Console.WriteLine("6. +Ausweichen (+1)");
+            Console.WriteLine("7. Beenden");
+            Console.WriteLine();
+            Console.Write("Auswahl: ");
+
+            string input = ReadChoiceWithKeywords(
+                "+MaxHealth",
+                "+MaxMana",
+                "+Angriff",
+                "+Verteidigung",
+                "+Krit-Chance",
+                "+Ausweichen",
+                "Beenden");
+
+            switch (input)
+            {
+                case "1":
+                    player.SpendSkillPointOnHealth();
+                    break;
+
+                case "2":
+                    player.SpendSkillPointOnMana();
+                    break;
+
+                case "3":
+                    player.SpendSkillPointOnAttack();
+                    break;
+
+                case "4":
+                    player.SpendSkillPointOnDefense();
+                    break;
+
+                case "5":
+                    player.SpendSkillPointOnCritical();
+                    break;
+
+                case "6":
+                    player.SpendSkillPointOnDodge();
+                    break;
+
+                case "7":
+                    return;
+
+                default:
+                    Console.WriteLine("Ungültige Eingabe.");
+                    Pause();
+                    break;
+            }
+
+            player.UpdateStats();
+        }
     }
 }
